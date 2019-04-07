@@ -10,14 +10,20 @@ from pick import *
 
 
 CONFIG = {
-	"dimension": 8,
+	"dimension": 32,
 	"maximum": 5,
-	"function": sphere_function,
+	"function": rozenbrock_function,
 }
 
 if __name__ == "__main__":
 	random.seed(time)
 
-	population = Population(Agent, 100, CONFIG)
+	population = Population(Agent, 100, CONFIG, 'log.txt')
 	population.run()
+	population.deinit()
+	# for _ in range(5):
+	# 	population = Population(Agent, 100, CONFIG, 'log.txt')
+	# 	population.run()
+	# 	population.deinit()
+	# 	CONFIG["dimension"] *= 2
 

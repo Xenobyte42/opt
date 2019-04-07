@@ -1,4 +1,5 @@
 import random
+import datetime
 
 from selection import *
 from crossing import *
@@ -23,7 +24,7 @@ class Agent:
 	def __str__(self):
 		s = ""
 		for i, gen in enumerate(self.gens):
-			s += "x" + str(i) + ": " + str(gen) + ";"
+			s += "x" + str(i + 1) + ": " + str(gen) + ";"
 		return s
 
 	def __repr__():
@@ -48,17 +49,19 @@ class Agent:
 
 
 class Population:
-	stagnation_coef = 0.0001
+	stagnation_coef = 0.001
 	max_stagnation_iter = 100
-	max_iter = 10000
+	max_iter = 15000
 
 	# agent - Agent cls
-	def __init__(self, agent, population_size, config):
+	def __init__(self, agent, population_size, config, logfile):
 		self._agent_cls = agent
 		self.population_size = population_size
 		self._agent_config = config
 
 		self.population = []
+		self.log = open(logfile, 'a+')
+		self.log.write('[{}]'.format(str(datetime.datetime.now())))
 		self._init()
 
 	def __len__(self):
@@ -83,10 +86,13 @@ class Population:
 		last_best = None
 		last_best_idx = None
 		iter_cnt = 0
+		self.log.write('Function: ' + self._agent_config["function"].__name__ + '\n')
+		self.log.write('Dimension: ' + str(self._agent_config["dimension"]) + '\n')
+		self.log.write('Maximum: ' + str(self._agent_config["maximum"]) + '\n')
 		while iter_with_stagnation < self.max_stagnation_iter and iter_cnt < self.max_iter:
 			new_population = []
-			# 1 / 2 for crossing ("// 4" cuz pick 2)
-			for _ in range(self.population_size // 2):
+			# 90% for crossing 
+			for _ in range(int(self.population_size // 10 * 4.5)):
 				if iter_cnt % 2:
 					first, second = selection_outbreeding(self)
 				else:
@@ -109,29 +115,37 @@ class Population:
 					new_agents.append(agent)
 				new_population += new_agents
 
-			# # 1 / 4 for michalewicz
-			# for _ in range(self.population_size // 4):
-			# 	idx = random.randrange(0, len(self.population) - 1)
-			# 	mutation_michalewicz(self.population[idx], iter_cnt / self.max_iter)
-			# 	new_population.append(self.population.pop(idx))
-
-			# # 1 / 4 for geometric shift
-			# for idx in range(len(self.population)):
-			# 	mutation_geometric_shift(self.population[idx], 1 - iter_cnt / self.max_iter)
+			# other for mutation
+			for idx in range(len(self.population)):
+				mutation_michalewicz(self.population[idx], iter_cnt / self.max_iter)
 			self.population += new_population
 
 			# pick new generation
-			pick_tourney(self, 10)
+			pick_tourney(self, 3)
 
 			idx, result = self.best_result()
 			if last_best is not None and math.fabs(last_best - result) < self.stagnation_coef:
 				iter_with_stagnation += 1
+			else:
+				iter_with_stagnation = 0
 
 			if last_best is None or result < last_best:
 				last_best = result
 				last_best_idx = idx
+			if iter_cnt % 100 == 0:
+				print('Last result: ', last_best)
+				print('Iter: ', iter_cnt)
+				print('Genom: ', self.population[last_best_idx])
+				print('Genom result: ', result)
+				print('\n\n')
 			iter_cnt += 1
+		self.log.write('Result: ' + str(last_best) + '\n')
+		self.log.write('Iter: ' + str(iter_cnt) + '\n')
+		self.log.write('Genom: ' + str(self.population[last_best_idx]) + '\n')
+		self.log.write('\n\n')
 		print('Result: ', last_best)
 		print('Iter: ', iter_cnt)
 		print('Genom: ', self.population[last_best_idx])
 
+	def deinit(self):
+		self.log.close()
