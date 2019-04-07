@@ -18,11 +18,12 @@ def selection_outbreeding(population):
 	for i in range(len(population)):
 		if i == first_idx:
 			continue
-		distance = distance(population.population[first_idx], population.population[i])
+		distance = calc_distance(population.population[first_idx], population.population[i])
 		sum_dist += distance
 		distances.append(distance)
+	probabilities = [d / sum_dist for d in distances]
 	second_idx = numpy.random.choice(len(population) - 1, 1,
-		p=[distance / sum_dist for distance in distances])[0]
+		p=probabilities)[0]
 	if second_idx >= first_idx:
 		second_idx += 1
 	return [first_idx, second_idx]

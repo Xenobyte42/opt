@@ -25,6 +25,7 @@ def pick_tourney(population, n):
 				break
 			group.append(agents.pop(random.randint(0, len(agents) - 1)))
 		best_agent, group = pick_best(group)
-		new_agents.append(new_agents)
+		new_agents.append(best_agent)
+		# Остатки выбираем снова( херовое место, надо порефакторить)
 		agents += group
 	population.population = new_agents
