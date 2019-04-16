@@ -11,6 +11,7 @@ def calc_distance(agent1, agent2):
 		distance += math.fabs(agent1.gens[i] - agent2.gens[i])
 	return distance 
 
+
 def selection_outbreeding(population):
 	first_idx = random.randrange(len(population))
 	distances = []
@@ -27,6 +28,7 @@ def selection_outbreeding(population):
 	if second_idx >= first_idx:
 		second_idx += 1
 	return [first_idx, second_idx]
+
 
 def selection_inbreeding(population):
 	first_idx = random.randrange(len(population))

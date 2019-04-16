@@ -1,5 +1,8 @@
 import random
 import datetime
+import numpy
+import math
+from multiprocessing import Manager, Process
 
 from selection import *
 from crossing import *
@@ -11,10 +14,11 @@ class Agent:
 	precision = 5
 
 	def __init__(self, config, doinit=True):
-		self.dimension = config["dimension"]
-		self.maximum = config["maximum"]
+		self.dimension = config['dimension']
+		self.maximum = config['maximum']
 		self.gens = []
-		self.func = config["function"]
+		self.func = config['function']
+		self.global_min = config['global_min']
 		self.calculated = None
 
 		if doinit:
@@ -22,9 +26,9 @@ class Agent:
 			self.calculated = self.calc()
 
 	def __str__(self):
-		s = ""
+		s = ''
 		for i, gen in enumerate(self.gens):
-			s += "x" + str(i + 1) + ": " + str(gen) + ";"
+			s += 'x' + str(i + 1) + ': ' + str(gen) + ';'
 		return s
 
 	def __repr__():
@@ -40,6 +44,12 @@ class Agent:
 			self.calculated = self.func(self.gens)
 		return self.calculated
 
+	def prec(self):
+		deviation = 0
+		for x in self.gens:
+			deviation += math.fabs(x - self.global_min)
+		return deviation / self.dimension
+
 	def limit(self):
 		for i in range(len(self.gens)):
 			if self.gens[i] > self.maximum:
@@ -49,15 +59,18 @@ class Agent:
 
 
 class Population:
-	stagnation_coef = 0.001
-	max_stagnation_iter = 100
-	max_iter = 15000
 
 	# agent - Agent cls
-	def __init__(self, agent, population_size, config, logfile):
+	def __init__(self, agent, population_size, agent_config, config, logfile):
 		self._agent_cls = agent
-		self.population_size = population_size
-		self._agent_config = config
+		self._agent_config = agent_config
+
+		self.population_size = config['population_size']
+		self.stagnation_coef = config['stag_coef']
+		self.max_stagnation_iter = config['max_stag_iter']
+		self.max_iter = config['max_iter']
+		self.multistart_cnt = config['multistart_cnt']
+		self.core_cnt = config['core_cnt']
 
 		self.population = []
 		self.log = open(logfile, 'a+')
@@ -81,18 +94,16 @@ class Population:
 				best_idx = i
 		return best_idx, best
 
-	def run(self):
+	def _run(self):
+		self.reinit()
 		iter_with_stagnation = 0
 		last_best = None
 		last_best_idx = None
 		iter_cnt = 0
-		self.log.write('Function: ' + self._agent_config["function"].__name__ + '\n')
-		self.log.write('Dimension: ' + str(self._agent_config["dimension"]) + '\n')
-		self.log.write('Maximum: ' + str(self._agent_config["maximum"]) + '\n')
 		while iter_with_stagnation < self.max_stagnation_iter and iter_cnt < self.max_iter:
 			new_population = []
-			# 90% for crossing 
-			for _ in range(int(self.population_size // 10 * 4.5)):
+			# crossing 
+			for _ in range(int(self.population_size // 4)):
 				if iter_cnt % 2:
 					first, second = selection_outbreeding(self)
 				else:
@@ -123,6 +134,7 @@ class Population:
 			# pick new generation
 			pick_tourney(self, 3)
 
+			# get stat
 			idx, result = self.best_result()
 			if last_best is not None and math.fabs(last_best - result) < self.stagnation_coef:
 				iter_with_stagnation += 1
@@ -132,20 +144,53 @@ class Population:
 			if last_best is None or result < last_best:
 				last_best = result
 				last_best_idx = idx
-			if iter_cnt % 100 == 0:
-				print('Last result: ', last_best)
-				print('Iter: ', iter_cnt)
-				print('Genom: ', self.population[last_best_idx])
-				print('Genom result: ', result)
-				print('\n\n')
 			iter_cnt += 1
-		self.log.write('Result: ' + str(last_best) + '\n')
-		self.log.write('Iter: ' + str(iter_cnt) + '\n')
-		self.log.write('Genom: ' + str(self.population[last_best_idx]) + '\n')
-		self.log.write('\n\n')
 		print('Result: ', last_best)
 		print('Iter: ', iter_cnt)
 		print('Genom: ', self.population[last_best_idx])
+		return [last_best, iter_cnt, self.population[last_best_idx]]
+
+	def _run_multi(self, l, cnt):
+		for _ in range(cnt):
+			l.append(self._run())
+
+	def run(self):
+		self.log.write('Function: ' + self._agent_config['function'].__name__ + '\n')
+		self.log.write('Dimension: ' + str(self._agent_config['dimension']) + '\n')
+		self.log.write('Maximum: ' + str(self._agent_config['maximum']) + '\n')
+
+		best_results = []
+		best_genoms = []
+		iter_cnts = []
+		with Manager() as manager:
+			l = manager.list()
+			processes = []
+			for _ in range(self.core_cnt):
+				p = Process(target=self._run_multi, args=(l, int(self.multistart_cnt / self.core_cnt)))
+				processes.append(p)
+				p.start()
+			for p in processes:
+				p.join()
+			for res in l:
+				best_results.append(res[0])
+				iter_cnts.append(res[1])
+				best_genoms.append(res[2])
+
+		# report logging
+		self.log.write('Min f* = {}\n'.format(min(best_results)))
+		self.log.write('Mean f* = {}\n'.format(numpy.mean(best_results)))
+		best_idx = min(enumerate(best_results), key=itemgetter(1))[0]
+		self.log.write('x* = {}\n'.format(best_genoms[best_idx].prec()))
+		precs = [gen.prec() for gen in best_genoms[best_idx]]
+		self.log.write('Mean x* = {}\n'.format(numpy.mean(precs)))
+		self.log.write('Mean t = {}\n'.format(numpy.mean(iter_cnts)))
+		self.log.write('All t = {}\n').format(sum(iter_cnts))
+		self.log.write('RMS f* = {}\n'.format(numpy.std(results)))
+		self.log.write('RMS t = {}\n'.format(numpy.std(iter_cnts)))
+
+	def reinit(self):
+		self.population = []
+		self._init()
 
 	def deinit(self):
 		self.log.close()

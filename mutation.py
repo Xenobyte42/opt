@@ -1,5 +1,6 @@
 import random
 
+
 def mutation_michalewicz(agent, coef):
 	def func(y):
 		u2 = random.random()
@@ -16,6 +17,7 @@ def mutation_michalewicz(agent, coef):
 	agent.gens = new_gens
 	agent.limit()
 
+
 def mutation_gauss(agent, coef):
 	gens = agent.gens
 	new_gens = []
@@ -24,6 +26,7 @@ def mutation_gauss(agent, coef):
 		new_gens.append(gen + random.gauss(0, coef))
 	agent.gens = new_gens
 	agent.limit()
+
 
 def mutation_geometric_shift(agent, coef):
 	gens = agent.gens
