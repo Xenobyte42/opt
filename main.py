@@ -33,6 +33,6 @@ if __name__ == '__main__':
 		population = Population(Agent, 100, AGENT_CONFIG, CONFIG, 'log.txt')
 		population.run()
 		population.deinit()
-		CONFIG['dimension'] *= 2
+		AGENT_CONFIG['dimension'] *= 2
 	print(time() - now)
 

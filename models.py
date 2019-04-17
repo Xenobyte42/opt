@@ -3,6 +3,7 @@ import datetime
 import numpy
 import math
 from multiprocessing import Manager, Process
+from operator import itemgetter
 
 from selection import *
 from crossing import *
@@ -181,11 +182,11 @@ class Population:
 		self.log.write('Mean f* = {}\n'.format(numpy.mean(best_results)))
 		best_idx = min(enumerate(best_results), key=itemgetter(1))[0]
 		self.log.write('x* = {}\n'.format(best_genoms[best_idx].prec()))
-		precs = [gen.prec() for gen in best_genoms[best_idx]]
+		precs = [gen.prec() for gen in best_genoms]
 		self.log.write('Mean x* = {}\n'.format(numpy.mean(precs)))
 		self.log.write('Mean t = {}\n'.format(numpy.mean(iter_cnts)))
-		self.log.write('All t = {}\n').format(sum(iter_cnts))
-		self.log.write('RMS f* = {}\n'.format(numpy.std(results)))
+		self.log.write('All t = {}\n'.format(sum(iter_cnts)))
+		self.log.write('RMS f* = {}\n'.format(numpy.std(best_results)))
 		self.log.write('RMS t = {}\n'.format(numpy.std(iter_cnts)))
 
 	def reinit(self):
