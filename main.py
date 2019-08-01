@@ -26,6 +26,5 @@ if __name__ == '__main__':
 	for _ in range(5):
 		population = Population(Agent, 100, AGENT_CONFIG, CONFIG, 'log.txt')
 		population.run()
-		population.deinit()
 		AGENT_CONFIG['dimension'] *= 2
 

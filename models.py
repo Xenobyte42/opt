@@ -1,5 +1,6 @@
 import datetime
 import numpy as np
+import logging
 from multiprocessing import Manager, Process
 from operator import itemgetter
 
@@ -72,12 +73,21 @@ class Population:
 		self.core_cnt = config['core_cnt']
 
 		self.population = []
-		self.log = open(logfile, 'a+')
-		self.log.write('[{}]'.format(str(datetime.datetime.now())))
+		self.log = self._setup_logger(logfile)
 		self._init()
 
 	def __len__(self):
 		return len(self.population)
+	
+	def _setup_logger(self, logfile):
+		logger = logging.getLogger()
+		logger.setLevel(logging.INFO)
+
+		file_handler = logging.FileHandler(logfile)
+		file_formatter=logging.Formatter("[%(asctime)s]   %(message)s")
+		file_handler.setFormatter(file_formatter)
+		logger.addHandler(file_handler)
+		return logger
 
 	def _init(self):
 		for _ in range(self.population_size):
@@ -154,9 +164,9 @@ class Population:
 			l.append(self._run())
 
 	def run(self):
-		self.log.write('Function: ' + self._agent_config['function'].__name__ + '\n')
-		self.log.write('Dimension: ' + str(self._agent_config['dimension']) + '\n')
-		self.log.write('Maximum: ' + str(self._agent_config['maximum']) + '\n')
+		self.log.info('Function: ' + self._agent_config['function'].__name__)
+		self.log.info('Dimension: ' + str(self._agent_config['dimension']))
+		self.log.info('Maximum: ' + str(self._agent_config['maximum']))
 
 		best_results = []
 		best_genoms = []
@@ -176,20 +186,18 @@ class Population:
 				best_genoms.append(res[2])
 
 		# report logging
-		self.log.write('Min f* = {}\n'.format(min(best_results)))
-		self.log.write('Mean f* = {}\n'.format(np.mean(best_results)))
+		self.log.info('Min f* = {}\n'.format(min(best_results)))
+		self.log.info('Mean f* = {}\n'.format(np.mean(best_results)))
 		best_idx = min(enumerate(best_results), key=itemgetter(1))[0]
-		self.log.write('x* = {}\n'.format(best_genoms[best_idx].prec()))
+		self.log.info('x* = {}\n'.format(best_genoms[best_idx].prec()))
 		precs = [gen.prec() for gen in best_genoms]
-		self.log.write('Mean x* = {}\n'.format(np.mean(precs)))
-		self.log.write('Mean t = {}\n'.format(np.mean(iter_cnts)))
-		self.log.write('All t = {}\n'.format(sum(iter_cnts)))
-		self.log.write('RMS f* = {}\n'.format(np.std(best_results)))
-		self.log.write('RMS t = {}\n'.format(np.std(iter_cnts)))
+		self.log.info('Mean x* = {}\n'.format(np.mean(precs)))
+		self.log.info('Mean t = {}\n'.format(np.mean(iter_cnts)))
+		self.log.info('All t = {}\n'.format(sum(iter_cnts)))
+		self.log.info('RMS f* = {}\n'.format(np.std(best_results)))
+		self.log.info('RMS t = {}\n'.format(np.std(iter_cnts)))
 
 	def reinit(self):
 		self.population = []
 		self._init()
 
-	def deinit(self):
-		self.log.close()
