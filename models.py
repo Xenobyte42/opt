@@ -1,7 +1,5 @@
-import random
 import datetime
-import numpy
-import math
+import numpy as np
 from multiprocessing import Manager, Process
 from operator import itemgetter
 
@@ -37,7 +35,7 @@ class Agent:
 
 	def _init(self):
 		for _ in range(self.dimension):
-			self.gens.append(round(random.random() * 2 * self.maximum, 
+			self.gens.append(round(np.random.rand() * 2 * self.maximum, 
 				self.precision) - self.maximum)
 
 	def calc(self):
@@ -48,7 +46,7 @@ class Agent:
 	def prec(self):
 		deviation = 0
 		for x in self.gens:
-			deviation += math.fabs(x - self.global_min)
+			deviation += np.fabs(x - self.global_min)
 		return deviation / self.dimension
 
 	def limit(self):
@@ -137,7 +135,7 @@ class Population:
 
 			# get stat
 			idx, result = self.best_result()
-			if last_best is not None and math.fabs(last_best - result) < self.stagnation_coef:
+			if last_best is not None and np.fabs(last_best - result) < self.stagnation_coef:
 				iter_with_stagnation += 1
 			else:
 				iter_with_stagnation = 0
@@ -179,15 +177,15 @@ class Population:
 
 		# report logging
 		self.log.write('Min f* = {}\n'.format(min(best_results)))
-		self.log.write('Mean f* = {}\n'.format(numpy.mean(best_results)))
+		self.log.write('Mean f* = {}\n'.format(np.mean(best_results)))
 		best_idx = min(enumerate(best_results), key=itemgetter(1))[0]
 		self.log.write('x* = {}\n'.format(best_genoms[best_idx].prec()))
 		precs = [gen.prec() for gen in best_genoms]
-		self.log.write('Mean x* = {}\n'.format(numpy.mean(precs)))
-		self.log.write('Mean t = {}\n'.format(numpy.mean(iter_cnts)))
+		self.log.write('Mean x* = {}\n'.format(np.mean(precs)))
+		self.log.write('Mean t = {}\n'.format(np.mean(iter_cnts)))
 		self.log.write('All t = {}\n'.format(sum(iter_cnts)))
-		self.log.write('RMS f* = {}\n'.format(numpy.std(best_results)))
-		self.log.write('RMS t = {}\n'.format(numpy.std(iter_cnts)))
+		self.log.write('RMS f* = {}\n'.format(np.std(best_results)))
+		self.log.write('RMS t = {}\n'.format(np.std(iter_cnts)))
 
 	def reinit(self):
 		self.population = []

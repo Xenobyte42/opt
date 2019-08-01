@@ -1,6 +1,4 @@
-import random
-import numpy
-import math
+import numpy as np
 
 
 def calc_distance(agent1, agent2):
@@ -8,12 +6,12 @@ def calc_distance(agent1, agent2):
 		raise RuntimeError
 	distance = 0
 	for i in range(len(agent1.gens)):
-		distance += math.fabs(agent1.gens[i] - agent2.gens[i])
+		distance += np.fabs(agent1.gens[i] - agent2.gens[i])
 	return distance 
 
 
 def selection_outbreeding(population):
-	first_idx = random.randrange(len(population))
+	first_idx = np.random.randint(0, len(population))
 	distances = []
 	sum_dist = 0
 	for i in range(len(population)):
@@ -23,7 +21,7 @@ def selection_outbreeding(population):
 		sum_dist += distance
 		distances.append(distance)
 	probabilities = [d / sum_dist for d in distances]
-	second_idx = numpy.random.choice(len(population) - 1, 1,
+	second_idx = np.random.choice(len(population) - 1, 1,
 		p=probabilities)[0]
 	if second_idx >= first_idx:
 		second_idx += 1
@@ -31,7 +29,7 @@ def selection_outbreeding(population):
 
 
 def selection_inbreeding(population):
-	first_idx = random.randrange(len(population))
+	first_idx = np.random.randint(0, len(population))
 	distances = []
 	sum_dist = 0
 	for i in range(len(population)):
@@ -41,7 +39,7 @@ def selection_inbreeding(population):
 		sum_dist += distance
 		distances.append(distance)
 	probabilities = [d / sum_dist for d in distances]
-	second_idx = numpy.random.choice(len(population) - 1, 1,
+	second_idx = np.random.choice(len(population) - 1, 1,
 		p=probabilities)[0]
 	if second_idx >= first_idx:
 		second_idx += 1

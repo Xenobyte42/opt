@@ -1,4 +1,4 @@
-import random
+import numpy as np
 
 
 def pick_best(group):
@@ -23,7 +23,7 @@ def pick_tourney(population, n):
 		for _ in range(n):
 			if not agents:
 				break
-			group.append(agents.pop(random.randint(0, len(agents) - 1)))
+			group.append(agents.pop(np.random.randint(0, len(agents))))
 		best_agent, group = pick_best(group)
 		new_agents.append(best_agent)
 		agents += group

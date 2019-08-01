@@ -1,6 +1,3 @@
-import random
-from time import time
-
 from mutation import *
 from models import *
 from crossing import *
@@ -26,13 +23,9 @@ CONFIG = {
 }
 
 if __name__ == '__main__':
-	random.seed(time)
-
-	now = time()
 	for _ in range(5):
 		population = Population(Agent, 100, AGENT_CONFIG, CONFIG, 'log.txt')
 		population.run()
 		population.deinit()
 		AGENT_CONFIG['dimension'] *= 2
-	print(time() - now)
 
