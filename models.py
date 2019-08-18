@@ -1,203 +1,438 @@
 import datetime
 import numpy as np
-import logging
-from multiprocessing import Manager, Process
-from operator import itemgetter
-
-from selection import *
-from crossing import *
-from mutation import *
-from pick import *
 
 
-class Agent:
-	precision = 5
+class EvolutionAlgorithm:
 
-	def __init__(self, config, doinit=True):
-		self.dimension = config['dimension']
-		self.maximum = config['maximum']
-		self.gens = []
-		self.func = config['function']
-		self.global_min = config['global_min']
-		self.calculated = None
+	class EvolutionAlgorithmException(RuntimeError):
 
-		if doinit:
-			self._init()
-			self.calculated = self.calc()
+		"""Evolution algorithm class exception"""
+		pass
 
-	def __str__(self):
-		s = ''
-		for i, gen in enumerate(self.gens):
-			s += 'x' + str(i + 1) + ': ' + str(gen) + ';'
-		return s
+	"""Mutation functions"""
 
-	def __repr__():
-		return self.__str__()
+	def mutation_michalewicz(self, vec_x, temp_iter=0):
+		"""
+		Parameters:
+		-----------
+		vec_x: iterable
+			Vector for mutation
+		temp_iter: int, optional
+			Сurrent iteration step
 
-	def _init(self):
-		for _ in range(self.dimension):
-			self.gens.append(round(np.random.rand() * 2 * self.maximum, 
-				self.precision) - self.maximum)
+		Returns:
+    	-----------
+		new_x: iterable
+			Mutated vector same size as vec_x
+		"""
+		def func(val):
+			coef = 0.8 + 0.2 * temp_iter / self.__max_iter
+			u = np.random.random()
+			return val * (1 - u ** ((1 - (coef)) ** 5))
 
-	def calc(self):
-		if not self.calculated:
-			self.calculated = self.func(self.gens)
-		return self.calculated
+		new_x = []
 
-	def prec(self):
-		deviation = 0
-		for x in self.gens:
-			deviation += np.fabs(x - self.global_min)
-		return deviation / self.dimension
-
-	def limit(self):
-		for i in range(len(self.gens)):
-			if self.gens[i] > self.maximum:
-				self.gens[i] = self.maximum
-			elif self.gens[i] < -self.maximum:
-				self.gens[i] = -self.maximum
-
-
-class Population:
-
-	# agent - Agent cls
-	def __init__(self, agent, population_size, agent_config, config, logfile):
-		self._agent_cls = agent
-		self._agent_config = agent_config
-
-		self.population_size = config['population_size']
-		self.stagnation_coef = config['stag_coef']
-		self.max_stagnation_iter = config['max_stag_iter']
-		self.max_iter = config['max_iter']
-		self.multistart_cnt = config['multistart_cnt']
-		self.core_cnt = config['core_cnt']
-
-		self.population = []
-		self.log = self._setup_logger(logfile)
-		self._init()
-
-	def __len__(self):
-		return len(self.population)
+		for x in vec_x:
+			if np.random.randint(0, 2):
+				new_x.append(x + func(self.__bounds[1] - x))
+			else:
+				new_x.append(x - func(x - self.__bounds[1]))
+		for i, x in enumerate(new_x):
+			new_x[i] = self._limit(x)
+		return np.array(new_x)
 	
-	def _setup_logger(self, logfile):
-		logger = logging.getLogger()
-		logger.setLevel(logging.INFO)
+	def mutation_gauss(self, vec_x, temp_iter=0):
+		"""
+		Parameters:
+		-----------
+		vec_x: iterable
+			Vector for mutation
+		temp_iter: int, optional
+			Сurrent iteration step
 
-		file_handler = logging.FileHandler(logfile)
-		file_formatter=logging.Formatter("[%(asctime)s]   %(message)s")
-		file_handler.setFormatter(file_formatter)
-		logger.addHandler(file_handler)
-		return logger
+		Returns:
+    	-----------
+		new_x: iterable
+			Mutated vector same size as vec_x
+		"""
+		new_x = []
 
-	def _init(self):
-		for _ in range(self.population_size):
-			self.population.append(self._agent_cls(self._agent_config))
+		for x in vec_x:
+			new_x.append(x + np.random.normal(0, 0.1 * temp_iter / self.__max_iter))
+		for i, x in enumerate(new_x):
+			new_x[i] = self._limit(x)
+		return np.array(new_x)
 
-	def best_result(self):
-		best = None
-		best_idx = None
-		for i, agent in enumerate(self.population):
-			res = agent.calc()
-			if best is None or res < best:
-				best = res
-				best_idx = i
-		return best_idx, best
+	def mutation_geometric_shift(self, vec_x, temp_iter=0):
+		"""
+		Parameters:
+		-----------
+		vec_x: iterable
+			Vector for mutation
+		temp_iter: int, optional
+			Сurrent iteration step
 
-	def _run(self):
-		self.reinit()
+		Returns:
+    	-----------
+		new_x: iterable
+			Mutated vector same size as vec_x
+		"""
+		new_x = []
+		coef = temp_iter / self.__max_iter
+		for x in vec_x:
+			u = np.random.random()
+			new_x.append(x - x * coef * (2 * u - 1))
+		for i, x in enumerate(new_x):
+			new_x[i] = self._limit(x)
+		return np.array(new_x)
+
+	mutation_funcs = {
+		"michalewicz": mutation_michalewicz,
+		"gauss": mutation_gauss,
+		"geometric_shift": mutation_geometric_shift,
+	}
+
+	"""Crossing functions"""
+
+	def crossing_arithmetical(self, vec_x1, vec_x2):
+		"""
+		Parameters:
+		-----------
+		vec_x1: iterable
+			First vector for crossing
+		vec_x2: iterable
+			Second vector for crossing
+
+		Returns:
+    	-----------
+		result: iterable
+			Vector (1, 2) which contains crossed vectors
+		"""
+		new_vec1 = []
+		new_vec2 = []
+		for i in range(len(vec_x1)):
+			u = np.random.random()
+			new_vec1.append(u * vec_x1[i] + (1 - u) * vec_x2[i])
+			new_vec2.append(u * vec_x1[i] - (1 - u) * vec_x2[i])
+		return [np.array(new_vec1), np.array(new_vec2)]
+	
+	def crossing_fuzzy(self, vec_x1, vec_x2):
+		"""
+		Parameters:
+		-----------
+		vec_x1: iterable
+			First vector for crossing
+		vec_x2: iterable
+			Second vector for crossing
+
+		Returns:
+    	-----------
+		result: iterable
+			Vector (1, 2) which contains crossed vectors
+		"""
+		new_vec1 = []
+		new_vec2 = []
+		for i in range(len(vec_x1)):
+			delta = np.fabs(vec_x1[i] - vec_x2[i]) * 0.5 + 0.001
+			new_vec1.append(np.random.triangular(vec_x1[i] - delta, vec_x1[i], vec_x1[i] + delta))
+			new_vec2.append(np.random.triangular(vec_x2[i] - delta, vec_x2[i], vec_x2[i] + delta))
+		return [np.array(new_vec1), np.array(new_vec2)]
+
+	def crossing_x3linear(vec_x1, vec_x2):
+		"""
+		Parameters:
+		-----------
+		vec_x1: iterable
+			First vector for crossing
+		vec_x2: iterable
+			Second vector for crossing
+		vec_x3: iterable
+			Third vector for crossing
+
+		Returns:
+    	-----------
+		result: iterable
+			Vector (1, 3) which contains crossed vectors
+		"""
+		new_vec1 = []
+		new_vec2 = []
+		new_vec3 = []
+		for i in range(len(vec_x1)):
+			new_vec1.append(0.5 * vec_x1[i] + 0.5 * vec_x2[i])
+			new_vec2.append(1.5 * vec_x1[i] - 0.5 * vec_x2[i])
+			new_vec3.append(-0.5 * vec_x1[i] + 1.5 * vec_x2[i])
+		return [np.array(new_vec1), np.array(new_vec2), np.array(new_vec3)]
+
+	crossing_funcs = {
+		"arithmetical": crossing_arithmetical,
+		"fuzzy": crossing_fuzzy,
+		"x3linear": crossing_x3linear,
+	}
+
+	"""Selection functions"""
+
+	def __calc_distance(self, vec_x1, vec_x2):
+		"""
+		Parameters:
+		-----------
+		vec_x1: iterable
+			First vector for calculating
+		vec_x2: iterable
+			Second vector for calculating
+
+		Returns:
+    	-----------
+		distance: float32
+			Distance between two vectors
+		"""
+		distance = 0
+		for i in range(len(vec_x1)):
+			distance += np.fabs(vec_x1[i] - vec_x2[i])
+		return distance 
+
+	def breeding_wrapper(func):
+		"""
+		Function wrapper for outbreeding and inbreeding
+		Returns:
+    	-----------
+		result: callable
+			Function-wrapper
+		"""
+		def wrapped(self):
+			"""
+			Select 2 indexes for crossing
+			Returns:
+			-----------
+			result: iterable
+				List with two sample indexes for crossing
+			"""
+			first_idx = np.random.randint(0, len(self.__population))
+			distances = []
+			sum_dist = 0
+			for i in range(len(self.__population)):
+				if i == first_idx:
+					continue
+				distance = self.__calc_distance(self.__population[first_idx], self.__population[i])
+				sum_dist += distance
+				distances.append(distance)
+			probabilities = [d / sum_dist for d in distances]
+			probabilities = func(self, distances, sum_dist)
+			second_idx = np.random.choice(len(self.__population) - 1, 1,
+				p=probabilities)[0]
+			if second_idx >= first_idx:
+				second_idx += 1
+			return [first_idx, second_idx]
+		return wrapped
+
+	@breeding_wrapper
+	def selection_outbreeding(self, distances, sum_dist):
+		"""
+		Parameters:
+		-----------
+		distances: iterable
+			List of distances between two vectors
+		sum_dist: float32
+			Sum distance between all vectors
+
+		Returns:
+    	-----------
+		result: iterable
+			List of probabilities for selection picking
+		"""
+		return [d / sum_dist for d in distances]
+
+	@breeding_wrapper
+	def selection_inbreeding(self, distances, sum_dist):
+		"""
+		Parameters:
+		-----------
+		distances: iterable
+			List of distances between two vectors
+		sum_dist: float32
+			Sum distance between all vectors
+
+		Returns:
+    	-----------
+		result: iterable
+			List of probabilities for selection picking
+		"""
+		return [1.0 - d / sum_dist for d in distances]
+	
+	selection_funcs = {
+		"outbreeding": selection_outbreeding,
+		"inbreeding": selection_inbreeding,
+	}
+
+	"""Pick functions"""
+
+	def pick_tourney(self, mixed_population, mixed_values, n):
+		"""
+		Parameters:
+		-----------
+		mixed_population: iterable
+			List of vectors which contains old and new populations
+		mixed_population: 
+			List of vectors which contains calculated values
+		n: int
+			Count samples in each group
+
+		Returns:
+    	-----------
+		result: iterable
+			Tuple with new populations vector and new values vector
+		"""
+		new_population = []
+		for _ in range(self.__popsize):
+			group_idxs = []
+			for _ in range(n):
+				group_idxs.append(np.random.randint(0, len(mixed_population)))
+			best_idx = min(group_idxs, key=lambda idx: mixed_values[idx])
+			new_population.append(mixed_population.pop(best_idx))
+			mixed_values.pop(best_idx)
+		return (np.array(new_population), np.array(mixed_values))
+
+	pick_funcs = {
+		"tourney": pick_tourney,
+	}
+
+	def __init__(self, func, dimension, bounds, max_iter=1000, 
+				 stagnation_coef=0.01, popsize=10, mutation_func="michalewicz",
+				 crossing_func="arithmetical", selection_func="outbreeding", pick_func="tourney"):
+		"""
+		Parameters:
+		-----------
+		func: callable
+			Function to be minimized. Must accept 'x' vector and return 'float32' result
+		dimension: int
+			Dimension of vector 'x'. Must be in range [2; +inf)
+		bounds: sequence or int
+			If 'bounds' is iterable:
+				- 'bounds' length must be equals 2;
+				- 'bounds[0]' < 'bounds[1]';
+			If 'bounds' is 'float32':
+				- 'bounds' must be > 0;
+		max_iter: int, optional
+			Max count of iterations. Must be > 0
+		stagnation_coef: float32
+			Coeficient of stagnation. Work when last 10% of iterations dont give difference. Must be >= 0 and < 1
+		popsize: int
+			Size of the population. Must be > 0
+		mutation_func: callable
+			Function which implements mutation. Must accept 'x' vector and 'coef' and return new vector same size
+			Implemented:
+			- michalewicz
+			- gauss
+			- geometric_shift
+		crossing_func:
+			Function which implements crossing. Must accept 2 'x' vectors and return new 2
+			Implemented:
+			- arithmetical
+			- fuzzy
+			- x3linear
+		selection_func:
+			Function which implements selection. Must return 2 sample indexes for crossing
+			Implemented:
+			- outbreeding
+			- inbreeding
+		pick_func:
+			Function which implements pick logic. Must accept mixed population and return new population
+			Implemented:
+			- tourney
+		"""
+		self.__func = func
+		self.__mutation_func = self.mutation_funcs[mutation_func]
+		self.__crossing_func = self.crossing_funcs[crossing_func]
+		self.__selection_func = self.selection_funcs[selection_func]
+		self.__pick_func = self.pick_funcs[pick_func]
+		if dimension < 2:
+			raise EvolutionAlgorithmException("dimension must be >= 2")
+		self.__dim = dimension
+
+		if hasattr(bounds, "__iter__") and len(bounds) == 2:
+			if bounds[0] >= bounds[1]:
+				raise EvolutionAlgorithmException("min bound must be < max bound")
+			self.__bounds = np.array(bounds)
+		else:
+			if bounds <= 0:
+				raise EvolutionAlgorithmException("bound must be > 0")
+			self.__bounds = np.array([-bounds, bounds])
+
+		if max_iter <= 0:
+			raise EvolutionAlgorithmException("max count of iterations must be > 0")
+		self.__max_iter = max_iter
+
+		if stagnation_coef < 0 and stagnation_coef >= 1:
+			raise EvolutionAlgorithmException("stagnation coef must be >= 0 and < 1")
+		self.__stag_coef = stagnation_coef
+
+		if popsize < 1:
+			raise EvolutionAlgorithmException("population size must be > 0")
+		self.__popsize = popsize
+		self._init_population()
+
+	def _init_population(self):
+		"""Generate population matrix, where row count = popsize and calculate function values"""
+		self.__population = (self.__bounds[1] - self.__bounds[0]) * \
+							np.random.random_sample((self.__popsize, self.__dim)) + self.__bounds[0]
+		self.__values = np.array([self.__func(vec_x) for vec_x in self.__population])
+		self.__mutated_population = np.array([self.__mutation_func(self, vec_x) for vec_x in self.__population])
+		self.__mutated_values = np.array([self.__func(vec_x) for vec_x in self.__mutated_population])
+		self.__Q = np.arange(0.1, 0.1 * (self.__max_iter + 1), 0.1)[::-1]
+	
+	def _limit(self, x):
+		"""Limit x values in interval (-bound; bound)"""
+		if x >= self.__bounds[0] and x <= self.__bounds[1]:
+			return x
+		if x < self.__bounds[0]:
+			return self.__bounds[0]
+		if x > self.__bounds[1]:
+			return self.__bounds[1]
+
+	def evolve(self):
+		"""Evolve function. Implement evolve cycle with mutation and crossing"""
+		temp_iter = 0
 		iter_with_stagnation = 0
-		last_best = None
-		last_best_idx = None
-		iter_cnt = 0
-		while iter_with_stagnation < self.max_stagnation_iter and iter_cnt < self.max_iter:
-			new_population = []
-			# crossing 
-			for _ in range(int(self.population_size // 4)):
-				if iter_cnt % 2:
-					first, second = selection_outbreeding(self)
-				else:
-					first, second = selection_inbreeding(self)
-				agent1 = self.population[first]
-				agent2 = self.population[second]
-
-				self.population.pop(first)
-				if second > first:
-					second = second - 1
-				self.population.pop(second)
-
-				new_population += [agent1, agent2]
-				new_gens = crossing_arithmetical(agent1, agent2)
-				new_agents = []
-				for gen in new_gens:
-					agent = Agent(self._agent_config, doinit=False)
-					agent.gens = gen
-					agent.limit()
-					new_agents.append(agent)
-				new_population += new_agents
-
-			# other for mutation
-			for idx in range(len(self.population)):
-				mutation_michalewicz(self.population[idx], iter_cnt / self.max_iter)
-			self.population += new_population
-
-			# pick new generation
-			pick_tourney(self, 3)
-
-			# get stat
-			idx, result = self.best_result()
-			if last_best is not None and np.fabs(last_best - result) < self.stagnation_coef:
+		min_val = None
+		max_iter_with_stagnation = int(self.__max_iter * 0.1)
+		while temp_iter < self.__max_iter and iter_with_stagnation < max_iter_with_stagnation:
+			self.__mutate(temp_iter)
+			self.__cross()
+			temp_min = np.amin(self.__values)
+			if min_val is None or temp_min < min_val:
+				min_val = temp_min
+			if temp_min - min_val < 0.001:
 				iter_with_stagnation += 1
 			else:
 				iter_with_stagnation = 0
+			temp_iter += 1
+		print(min_val)
+	
+	def __mutate(self, temp_iter):
+		"""Mutate population. Implements an annealing simulation algorithm"""
+		def accept_mutation(temp_iter):
+			if self.__mutated_values[i] < self.__values[i]:
+				return True
+			p = np.exp(-(self.__mutated_values[i] - self.__values[i]) / self.__Q[temp_iter])
+			if np.random.binomial(1, p):
+				return True
+			return False
 
-			if last_best is None or result < last_best:
-				last_best = result
-				last_best_idx = idx
-			iter_cnt += 1
-		print('Result: ', last_best)
-		print('Iter: ', iter_cnt)
-		print('Genom: ', self.population[last_best_idx])
-		return [last_best, iter_cnt, self.population[last_best_idx]]
+		self.__mutated_population = np.array([self.__mutation_func(self, vec_x, temp_iter) 
+											  for vec_x in self.__population])
+		self.__mutated_values = np.array([self.__func(vec_x) for vec_x in self.__mutated_population])
 
-	def _run_multi(self, l, cnt):
-		for _ in range(cnt):
-			l.append(self._run())
+		for i in range(self.__population.shape[0]):
+			if accept_mutation(temp_iter):
+				self.__population[i] = self.__mutated_population[i]
+				self.__values[i] = self.__mutated_values[i]
 
-	def run(self):
-		self.log.info('Function: ' + self._agent_config['function'].__name__)
-		self.log.info('Dimension: ' + str(self._agent_config['dimension']))
-		self.log.info('Maximum: ' + str(self._agent_config['maximum']))
-
-		best_results = []
-		best_genoms = []
-		iter_cnts = []
-		with Manager() as manager:
-			l = manager.list()
-			processes = []
-			for _ in range(self.core_cnt):
-				p = Process(target=self._run_multi, args=(l, int(self.multistart_cnt / self.core_cnt)))
-				processes.append(p)
-				p.start()
-			for p in processes:
-				p.join()
-			for res in l:
-				best_results.append(res[0])
-				iter_cnts.append(res[1])
-				best_genoms.append(res[2])
-
-		# report logging
-		self.log.info('Min f* = {}\n'.format(min(best_results)))
-		self.log.info('Mean f* = {}\n'.format(np.mean(best_results)))
-		best_idx = min(enumerate(best_results), key=itemgetter(1))[0]
-		self.log.info('x* = {}\n'.format(best_genoms[best_idx].prec()))
-		precs = [gen.prec() for gen in best_genoms]
-		self.log.info('Mean x* = {}\n'.format(np.mean(precs)))
-		self.log.info('Mean t = {}\n'.format(np.mean(iter_cnts)))
-		self.log.info('All t = {}\n'.format(sum(iter_cnts)))
-		self.log.info('RMS f* = {}\n'.format(np.std(best_results)))
-		self.log.info('RMS t = {}\n'.format(np.std(iter_cnts)))
-
-	def reinit(self):
-		self.population = []
-		self._init()
+	def __cross(self):
+		"""Generate new population. Implement selection, crossing and pick algorithms"""
+		new_population = []
+		for _ in range(int(self.__popsize / 2)):
+			first_idx, second_idx = self.__selection_func(self)
+			new_population += self.__crossing_func(self, self.__population[first_idx], self.__population[second_idx])
+		mixed_population = list(self.__population) + new_population
+		mixed_values = [self.__func(vec_x) for vec_x in mixed_population]
+		self.__population, self.__values = self.__pick_func(self, mixed_population, mixed_values, 3)
 

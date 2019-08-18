@@ -1,30 +1,9 @@
-from mutation import *
+
 from models import *
-from crossing import *
-from selection import *
 from functions import *
-from pick import *
 
-
-AGENT_CONFIG = {
-	'dimension': 2,
-	'maximum': 5.12,
-	'function': sphere_function,
-	'global_min': 0,
-}
-
-CONFIG = {
-	'stag_coef': 0.00001,
-	'max_stag_iter': 100,
-	'max_iter': 10000,
-	'multistart_cnt': 100,
-	'core_cnt': 4,
-	'population_size': 100,
-}
-
-if __name__ == '__main__':
-	for _ in range(5):
-		population = Population(Agent, 100, AGENT_CONFIG, CONFIG, 'log.txt')
-		population.run()
-		AGENT_CONFIG['dimension'] *= 2
+if __name__ == "__main__":
+	algo = EvolutionAlgorithm(func=rozenbrock_function, dimension=32, bounds=5.12, max_iter=1000,
+								mutation_func='geometric_shift', crossing_func='fuzzy')
+	algo.evolve()
 
