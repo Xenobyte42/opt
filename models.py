@@ -9,6 +9,14 @@ class EvolutionAlgorithm:
 		"""Evolution algorithm class exception"""
 		pass
 
+	class EvolveOutput:
+		"""Class for output. Just for fun"""
+
+		def	__init__(self, value, vector, iter_cnt):
+			self.value = value
+			self.vector = vector
+			self.iter_cnt = iter_cnt
+
 	"""Mutation functions"""
 
 	def mutation_michalewicz(self, vec_x, temp_iter=0):
@@ -345,28 +353,28 @@ class EvolutionAlgorithm:
 		self.__selection_func = self.selection_funcs[selection_func]
 		self.__pick_func = self.pick_funcs[pick_func]
 		if dimension < 2:
-			raise EvolutionAlgorithmException("dimension must be >= 2")
+			raise self.EvolutionAlgorithmException("dimension must be >= 2")
 		self.__dim = dimension
 
 		if hasattr(bounds, "__iter__") and len(bounds) == 2:
 			if bounds[0] >= bounds[1]:
-				raise EvolutionAlgorithmException("min bound must be < max bound")
+				raise self.EvolutionAlgorithmException("min bound must be < max bound")
 			self.__bounds = np.array(bounds)
 		else:
 			if bounds <= 0:
-				raise EvolutionAlgorithmException("bound must be > 0")
+				raise self.EvolutionAlgorithmException("bound must be > 0")
 			self.__bounds = np.array([-bounds, bounds])
 
 		if max_iter <= 0:
-			raise EvolutionAlgorithmException("max count of iterations must be > 0")
+			raise self.EvolutionAlgorithmException("max count of iterations must be > 0")
 		self.__max_iter = max_iter
 
 		if stagnation_coef < 0 and stagnation_coef >= 1:
-			raise EvolutionAlgorithmException("stagnation coef must be >= 0 and < 1")
+			raise self.EvolutionAlgorithmException("stagnation coef must be >= 0 and < 1")
 		self.__stag_coef = stagnation_coef
 
 		if popsize < 1:
-			raise EvolutionAlgorithmException("population size must be > 0")
+			raise self.EvolutionAlgorithmException("population size must be > 0")
 		self.__popsize = popsize
 		self._init_population()
 
@@ -390,22 +398,26 @@ class EvolutionAlgorithm:
 
 	def evolve(self):
 		"""Evolve function. Implement evolve cycle with mutation and crossing"""
+		min_val = None
+		min_vec = None
+
 		temp_iter = 0
 		iter_with_stagnation = 0
-		min_val = None
 		max_iter_with_stagnation = int(self.__max_iter * 0.1)
 		while temp_iter < self.__max_iter and iter_with_stagnation < max_iter_with_stagnation:
 			self.__mutate(temp_iter)
 			self.__cross()
-			temp_min = np.amin(self.__values)
-			if min_val is None or temp_min < min_val:
-				min_val = temp_min
-			if temp_min - min_val < 0.001:
+
+			temp_min_idx = self.__values.argmin()
+			if min_val is None or self.__values[temp_min_idx] < min_val:
+				min_val = self.__values[temp_min_idx]
+				min_vec = self.__population[temp_min_idx]
+			if self.__values[temp_min_idx] - min_val < 0.001:
 				iter_with_stagnation += 1
 			else:
 				iter_with_stagnation = 0
 			temp_iter += 1
-		print(min_val)
+		return self.EvolveOutput(min_val, min_vec, temp_iter)
 	
 	def __mutate(self, temp_iter):
 		"""Mutate population. Implements an annealing simulation algorithm"""
