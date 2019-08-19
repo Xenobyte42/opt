@@ -66,7 +66,7 @@ class EvolutionAlgorithm:
 		new_x = []
 
 		for x in vec_x:
-			new_x.append(x + np.random.normal(0, 0.1 * temp_iter / self.__max_iter))
+			new_x.append(x + np.random.normal(0, temp_iter / self.__max_iter))
 		for i, x in enumerate(new_x):
 			new_x[i] = self._limit(x)
 		return np.array(new_x)
@@ -146,7 +146,7 @@ class EvolutionAlgorithm:
 			new_vec2.append(np.random.triangular(vec_x2[i] - delta, vec_x2[i], vec_x2[i] + delta))
 		return [np.array(new_vec1), np.array(new_vec2)]
 
-	def crossing_x3linear(vec_x1, vec_x2):
+	def crossing_x3linear(self, vec_x1, vec_x2):
 		"""
 		Parameters:
 		-----------
@@ -290,14 +290,15 @@ class EvolutionAlgorithm:
 			Tuple with new populations vector and new values vector
 		"""
 		new_population = []
+		new_values = []
 		for _ in range(self.__popsize):
 			group_idxs = []
 			for _ in range(n):
 				group_idxs.append(np.random.randint(0, len(mixed_population)))
 			best_idx = min(group_idxs, key=lambda idx: mixed_values[idx])
 			new_population.append(mixed_population.pop(best_idx))
-			mixed_values.pop(best_idx)
-		return (np.array(new_population), np.array(mixed_values))
+			new_values.append(mixed_values.pop(best_idx))
+		return (np.array(new_population), np.array(new_values))
 
 	pick_funcs = {
 		"tourney": pick_tourney,
