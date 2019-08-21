@@ -223,7 +223,6 @@ class EvolutionAlgorithm:
 				distance = self.__calc_distance(self.__population[first_idx], self.__population[i])
 				sum_dist += distance
 				distances.append(distance)
-			probabilities = [d / sum_dist for d in distances]
 			probabilities = func(self, distances, sum_dist)
 			second_idx = np.random.choice(len(self.__population) - 1, 1,
 				p=probabilities)[0]
@@ -412,7 +411,7 @@ class EvolutionAlgorithm:
 			temp_min_idx = self.__values.argmin()
 			if min_val is None or self.__values[temp_min_idx] < min_val:
 				min_val = self.__values[temp_min_idx]
-				min_vec = self.__population[temp_min_idx]
+				min_vec = np.array(self.__population[temp_min_idx])
 			if self.__values[temp_min_idx] - min_val < 0.001:
 				iter_with_stagnation += 1
 			else:

@@ -2,6 +2,8 @@ import logging
 
 from models import *
 from functions import *
+from scipy import optimize
+import time
 
 """
 	Модуль расчетов. Требуется менять содержимое 2 словарей-конфигов:
@@ -33,26 +35,39 @@ from functions import *
 				- inbreeding
 			- pick_func - функция отбора. В данный момент в алгоритме реализованы следующие функции:
 				- tourney
+			- global_min - значение x составляющей вектора глобального минимума. В случае если вектор состоит из 
+			одинаковых компонент достаточно просто указать число. Если в будущем появятся функции с более сложными
+			векторами глобальных минимумов, нужно будет указывать список нужной размерности. Некоторая справка по
+			глобальным минимумам реализованных функций:
+				- Сферическая - вектор нужной размерности из 0;
+				- Розенброк - вектор нужной размерности из 1;
+				- Растригин - вектор нужной размерности из 0;
+				- Шекель - вектор нужной размерности из 2;
+
 """
 
 TEST_FUNCS = {
 	"sphere": sphere_function,
 	"rozenbrock": rozenbrock_function,
 	"rastr": rastr_function,
+	"shekell": shekell_function,
 }
 
 CONFIG = {
 	"log_path": "log.txt",
 	"start_cnt": 100,
 	"test_func": TEST_FUNCS["sphere"],
-	"dimension": 4,
+	"dimension": 2,
 	"bounds": 5.12,
 	"max_iter": 1000,
 	"mutation_func": "geometric_shift",
 	"crossing_func": "fuzzy",
 	"selection_func": "outbreeding",
 	"pick_func": "tourney",
+	"global_min": 0,
 }
+
+CONFIG["global_min"] = [CONFIG["global_min"]] * CONFIG["dimension"]
 
 def setup_logging(log_file="log.txt"):
 	logger = logging.getLogger()
@@ -63,6 +78,12 @@ def setup_logging(log_file="log.txt"):
 	file_handler.setFormatter(file_formatter)
 	logger.addHandler(file_handler)
 	return logger
+
+def calc_disp(vec_x):
+	disp = 0.0
+	for i in range(CONFIG["dimension"]):
+		disp += np.power(vec_x[i] - CONFIG["global_min"][i], 2)
+	return disp / CONFIG["dimension"]
 
 def start():
 	logger = setup_logging(CONFIG["log_path"])
@@ -91,8 +112,12 @@ def start():
 	iterations = np.array(iterations)
 
 	min_idx = best_results.argmin()
+	best_disp = calc_disp(best_vectors[min_idx])
+	dispersions = [calc_disp(vec_x) for vec_x in best_vectors]
 	logger.info("Min f* = {}".format(np.amin(best_results)))
 	logger.info("Min vec x: {}".format(str(best_vectors[min_idx])))
+	logger.info("Dispersion best x by x = {}".format(best_disp))
+	logger.info("Mean dispersion x by x = {}".format(np.mean(dispersions)))
 	logger.info("Mean f* = {}".format(np.mean(best_results)))
 	logger.info("Mean t = {}".format(np.mean(iterations)))
 	logger.info("All t = {}".format(np.sum(iterations)))
@@ -101,4 +126,3 @@ def start():
 
 if __name__ == "__main__":
 	start()
-
